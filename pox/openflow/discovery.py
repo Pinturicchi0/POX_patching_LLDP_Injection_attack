@@ -46,7 +46,7 @@ _hmac_key = secrets.token_hex(16)
 
 def hmac_encryption(port_id, chassis_id, ttl, key):
     msg = port_id + chassis_id + str(ttl).encode()
-    h = hmac.new(key.encode(), msg.encode(), hashlib.sha256)
+    h = hmac.new(key.encode(), msg, hashlib.sha256)
     return h.hexdigest()
 
 class LLDPSender (object):
