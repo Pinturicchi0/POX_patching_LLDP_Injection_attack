@@ -29,6 +29,7 @@ from pox.lib.util import dpid_to_str, str_to_bool
 from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
+import hmac
 
 import struct
 import time
@@ -189,7 +190,10 @@ class LLDPSender (object):
     ttl = pkt.ttl(ttl = ttl)
 
     sysdesc = pkt.system_description()
-    sysdesc.payload = ('dpid:' + hex(int(dpid))[2:]).encode()
+
+    h = hmac.new(str.encode('Ciao'), digestmod='sha256')
+    h.update(str.encode('LLDPFAKE'))
+    sysdesc.payload = ('dpid:' + hex(int(dpid))[2:] + ';' + h.hexdigest()).encode()
 
     discovery_packet = pkt.lldp()
     discovery_packet.tlvs.append(chassis_id)
