@@ -31,6 +31,7 @@ import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 import hmac
 import hashlib
+import secrets
 
 import struct
 import time
@@ -41,7 +42,7 @@ from random import shuffle, random
 log = core.getLogger()
 
 
-_hmac_key = 'e179017a-62b0-4996-8a38-e91aa9f1'
+_hmac_key = secrets.token_hex(16)
 
 def hmac_encryption(port_id, chassis_id, ttl, key):
     msg = port_id + chassis_id + str(ttl).encode()
@@ -167,6 +168,7 @@ class LLDPSender (object):
 
     for _ in range(num):
       if len(self._this_cycle) == 0:
+        _hmac_key= secrets.token_hex(16) #new keychi
         self._this_cycle = self._next_cycle
         self._next_cycle = []
         #shuffle(self._this_cycle)
