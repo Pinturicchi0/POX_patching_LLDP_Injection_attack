@@ -30,6 +30,7 @@ from pox.core import core
 import pox.openflow.libopenflow_01 as of
 import pox.lib.packet as pkt
 import hmac
+import hashlib
 
 import struct
 import time
@@ -39,6 +40,13 @@ from random import shuffle, random
 
 log = core.getLogger()
 
+
+_hmac_key = 'e179017a-62b0-4996-8a38-e91aa9f1'
+
+def hmac_encryption(port_id, chassis_id, ttl, key):
+    msg = '' + port_id + chassis_id + ttl
+    h = hmac.new(key, msg, hashlib.sha256)
+    return h.hexdigest()
 
 class LLDPSender (object):
   """
@@ -191,8 +199,7 @@ class LLDPSender (object):
 
     sysdesc = pkt.system_description()
 
-    h = hmac.new(str.encode('Ciao'), digestmod='sha256')
-    h.update(str.encode('LLDPFAKE'))
+    h = hmac_encryption(port_id.id, chassis_id.id, ttl, _hmac_key)
     sysdesc.payload = ('dpid:' + hex(int(dpid))[2:] + ';' + h.hexdigest()).encode()
 
     discovery_packet = pkt.lldp()
@@ -391,8 +398,13 @@ class Discovery (EventMixin):
           # This is our favored way...
           for line in t.payload.decode().split('\n'):
             if line.startswith('dpid:'):
+              smac = line.split(';')
               try:
-                return int(line[5:], 16)
+                if smac[1][:64] != hmac_encryption(lldph.tlvs[1].id, lldph.tlvs[0].id, lldph.tlvs[2].ttl, _hmac_key):
+                  log.error("LLDP packet crafted. No HMAC corrispondence.")
+                  return EventHalt
+
+                return int(smac[0][5:], 16)
               except:
                 pass
           if len(t.payload) == 8:
