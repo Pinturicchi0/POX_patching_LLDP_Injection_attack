@@ -45,7 +45,7 @@ _hmac_key = 'e179017a-62b0-4996-8a38-e91aa9f1'
 
 def hmac_encryption(port_id, chassis_id, ttl, key):
     msg = '' + port_id + chassis_id + ttl
-    h = hmac.new(key, msg, hashlib.sha256)
+    h = hmac.new(key.encode(), msg.encode(), hashlib.sha256)
     return h.hexdigest()
 
 class LLDPSender (object):
