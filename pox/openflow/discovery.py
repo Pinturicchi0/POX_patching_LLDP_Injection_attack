@@ -34,17 +34,9 @@ import struct
 import time
 from collections import namedtuple
 from random import shuffle, random
-import hmac
-import hashlib
 
 
 log = core.getLogger()
-_hmac_key = 'e179017a-62b0-4996-8a38-e91aa9f1'
-
-def hmac_encryption(port_id, chassis_id, ttl, key):
-    msg = '' + port_id + chassis_id + ttl
-    h = hmac.new(_hmac_key, msg, hashlib.sha256)
-    return h.hexdigest()
 
 
 class LLDPSender (object):
@@ -60,7 +52,6 @@ class LLDPSender (object):
 
   # Maximum times to run the timer per second
   _sends_per_sec = 15
-  
 
   def __init__ (self, send_cycle_time, ttl = 120):
     """
@@ -183,11 +174,8 @@ class LLDPSender (object):
     po.data = eth.pack()
     return po.pack()
 
-
-  
-
   @staticmethod
-  def _create_discovery_packet (dpid, port_num, port_addr, ttl, hmac):
+  def _create_discovery_packet (dpid, port_num, port_addr, ttl):
     """
     Build discovery packet
     """
@@ -200,8 +188,6 @@ class LLDPSender (object):
 
     ttl = pkt.ttl(ttl = ttl)
 
-    hmac = hmac_encryption(port_id.id, chassis_id.id, ttl, _hmac_key)
-
     sysdesc = pkt.system_description()
     sysdesc.payload = ('dpid:' + hex(int(dpid))[2:]).encode()
 
@@ -209,7 +195,6 @@ class LLDPSender (object):
     discovery_packet.tlvs.append(chassis_id)
     discovery_packet.tlvs.append(port_id)
     discovery_packet.tlvs.append(ttl)
-    discovery_packet.tlvs.append(hmac)
     discovery_packet.tlvs.append(sysdesc)
     discovery_packet.tlvs.append(pkt.end_tlv())
 
@@ -382,7 +367,7 @@ class Discovery (EventMixin):
     if lldph is None or not lldph.parsed:
       log.error("LLDP packet could not be parsed")
       return EventHalt
-    if len(lldph.tlvs) < 4:
+    if len(lldph.tlvs) < 3:
       log.error("LLDP packet without required three TLVs")
       return EventHalt
     if lldph.tlvs[0].tlv_type != pkt.lldp.CHASSIS_ID_TLV:
@@ -394,21 +379,10 @@ class Discovery (EventMixin):
     if lldph.tlvs[2].tlv_type != pkt.lldp.TTL_TLV:
       log.error("LLDP packet TLV 3 not TTL")
       return EventHalt
-    if lldph.tlvs[3].tlv_type != pkt.lldp.HMAC_TLV:
-      log.error("LLDP packet HMAC 3 not TTL")
-      return EventHalt
-
-    def hmac_checker():
-      #verifica correttezza hmac
-      return lldph.tlvs[3].hmac == hmac_encryption(lldph.tlvs[1].id, lldph.tlvs[0].id,_hmac_key)
-
-    if not hmac_checker():
-      log.error("LLDP packet is crafted! No HMAC correspondence")
-      return EventHalt
 
     def lookInSysDesc ():
       r = None
-      for t in lldph.tlvs[4:]:
+      for t in lldph.tlvs[3:]:
         if t.tlv_type == pkt.lldp.SYSTEM_DESC_TLV:
           # This is our favored way...
           for line in t.payload.decode().split('\n'):

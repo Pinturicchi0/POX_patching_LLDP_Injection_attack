@@ -92,7 +92,6 @@ class lldp (packet_base):
   SYSTEM_DESC_TLV = 6
   SYSTEM_CAP_TLV  = 7
   MANAGEMENT_ADDR_TLV = 8
-  HMAC_TLV = 9
   ORGANIZATIONALLY_SPECIFIC_TLV = 127
 
   tlv_parsers = {}
@@ -178,16 +177,6 @@ class lldp (packet_base):
       self.msg( '(lldp parse) error port TTL TLV missing' )
       return
 
-    ret = self.next_tlv(raw[pduhead:])
-    if ret == None:
-       self.msg( '(lldp parse) error parsing HMAC TLV' )
-       return
-    pduhead += ret
-    if self.tlvs[len(self.tlvs)-1].tlv_type != lldp.HMAC_TLV:
-      self.msg( '(lldp parse) error port HMAC TLV missing' )
-      return
-
-
     # Loop over all other TLVs
     arr_len = len(raw)
     while True:
@@ -195,7 +184,6 @@ class lldp (packet_base):
       if ret == None:
         self.msg( '(lldp parse) error parsing TLV' )
         return
-      
       if self.tlvs[len(self.tlvs)-1].tlv_type == lldp.END_TLV:
         break
       if (pduhead + ret) >= arr_len:
@@ -258,7 +246,7 @@ class simple_tlv (tlv_base):
   def parse (self, raw):
     # assume lldp has done the type/len checking
     (typelen,) = struct.unpack("!H", raw[0:2])
-    tlv_type = typelen >> 10
+    tlv_type = typelen >> 9
     if self.tlv_type is not None:
       assert self.tlv_type == tlv_type
     self.tlv_type = tlv_type
@@ -317,7 +305,6 @@ class simple_tlv (tlv_base):
     Override this.
     """
     return self.payload
-
 
 
 class unknown_tlv (simple_tlv):
@@ -417,24 +404,6 @@ class port_id (simple_tlv):
     return struct.pack("!B", self.subtype) + self.id
 
 
-class hmac_tlv(simple_tlv):
-  tlv_type = lldp.HMAC_TLV
-
-  def _init(self, kw):
-      self.hmac = 0
-
-  def _parse_data(self, data):
-      if len(data)!=8:
-        raise MalformedException("HMAC has invalid strlen")
-      (self.hmac,) = struct.unpack("!H", data[0:8])
-
-  def __str__ (self):
-    return ''.join(['<hmac:',str(self.hmac),'>'])
-
-  def _pack_data (self):
-    return struct.pack('!H', self.hmac)
-
-    
 class ttl (simple_tlv):
   tlv_type = lldp.TTL_TLV
 
@@ -572,5 +541,5 @@ class system_capabilities (simple_tlv):
 # Add parsers to main lldp class
 for t in [chassis_id, port_id, ttl, system_name, system_description,
       end_tlv, organizationally_specific, port_description,
-      system_capabilities, management_address, hmac_tlv]:
+      system_capabilities, management_address]:
   lldp.tlv_parsers[t.tlv_type] = t
