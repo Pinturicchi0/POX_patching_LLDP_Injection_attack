@@ -168,7 +168,7 @@ class LLDPSender (object):
 
     for _ in range(num):
       if len(self._this_cycle) == 0:
-        _hmac_key= secrets.token_hex(16) #new keychi
+        _hmac_key= secrets.token_hex(16) #new key
         self._this_cycle = self._next_cycle
         self._next_cycle = []
         #shuffle(self._this_cycle)
@@ -392,6 +392,15 @@ class Discovery (EventMixin):
     if lldph.tlvs[2].tlv_type != pkt.lldp.TTL_TLV:
       log.error("LLDP packet TLV 3 not TTL")
       return EventHalt
+    for t in lldph.tlvs[3:]:
+      if t.tlv_type == pkt.lldp.SYSTEM_DESC_TLV:
+        # This is our favored way...
+        for line in t.payload.decode().split('\n'):
+          if line.startswith('dpid:'):
+            smac = line.split(';')
+            if smac[1][:64] != hmac_encryption(lldph.tlvs[1].id, lldph.tlvs[0].id, lldph.tlvs[2].ttl, _hmac_key):
+              log.error("LLDP packet crafted. No HMAC corrispondence.")
+              return EventHalt
 
     def lookInSysDesc ():
       r = None
@@ -400,13 +409,8 @@ class Discovery (EventMixin):
           # This is our favored way...
           for line in t.payload.decode().split('\n'):
             if line.startswith('dpid:'):
-              smac = line.split(';')
               try:
-                if smac[1][:64] != hmac_encryption(lldph.tlvs[1].id, lldph.tlvs[0].id, lldph.tlvs[2].ttl, _hmac_key):
-                  log.error("LLDP packet crafted. No HMAC corrispondence.")
-                  return EventHalt
-
-                return int(smac[0][5:], 16)
+                return int(line[5:], 16)
               except:
                 pass
           if len(t.payload) == 8:
