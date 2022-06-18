@@ -24,7 +24,7 @@ def launch (forwarding = "l2"):
   pox.log.launch(format="[@@@bold@@@level%(name)-22s@@@reset] " +
                         "@@@bold%(message)s@@@normal")
   from pox.core import core
-  import pox.openflow.discovery
+  import pox.openflow.discovery_patch_lldpinj
   pox.openflow.discovery.launch()
 
   core.getLogger("openflow.spanning_tree").setLevel("INFO")

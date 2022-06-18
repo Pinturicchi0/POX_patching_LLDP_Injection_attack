@@ -37,7 +37,7 @@ from pox.lib.revent import *
 from pox.lib.util import dpid_to_str
 from pox.proto.dhcpd import DHCPLease, DHCPD
 from collections import defaultdict
-from pox.openflow.discovery import Discovery
+from pox.openflow.discovery_patch_lldpinj import Discovery
 import time
 
 log = core.getLogger("f.t_p")

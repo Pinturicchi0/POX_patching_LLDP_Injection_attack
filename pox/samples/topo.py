@@ -19,7 +19,7 @@ Fires up topology, discovery, and a l2 learning switch controller
 def launch ():
   import pox.topology
   pox.topology.launch()
-  import pox.openflow.discovery
+  import pox.openflow.discovery_patch_lldpinj
   pox.openflow.discovery.launch()
   import pox.openflow.topology
   pox.openflow.topology.launch()

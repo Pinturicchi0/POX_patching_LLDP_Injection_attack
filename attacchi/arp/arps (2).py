@@ -1,6 +1,8 @@
 from scapy.all import *
 import time
 
+
+
 def get_mac(IP):
     ans, unans = srp(Ether(dst = "ff:ff:ff:ff:ff:ff")/ARP(pdst = IP), timeout = 2, iface = 'eth0', inter = 0.1)
     for snd,rcv in ans:

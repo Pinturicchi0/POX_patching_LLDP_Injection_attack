@@ -52,7 +52,7 @@ from pox.lib.revent import Event, EventHalt
 
 import pox.openflow.libopenflow_01 as of
 
-import pox.openflow.discovery as discovery
+import pox.openflow.discovery_patch_lldpinj as discovery
 
 from pox.lib.revent.revent import *
 

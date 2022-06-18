@@ -32,7 +32,7 @@ import pox.openflow.libopenflow_01 as of
 from pox.lib.revent import *
 from pox.lib.recoco import Timer
 from collections import defaultdict
-from pox.openflow.discovery import Discovery
+from pox.openflow.discovery_patch_lldpinj import Discovery
 from pox.lib.util import dpid_to_str
 import time
 

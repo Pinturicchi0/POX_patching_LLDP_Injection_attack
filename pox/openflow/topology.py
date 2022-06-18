@@ -29,7 +29,7 @@ from . import libopenflow_01 as of
 from pox.openflow import *
 from pox.core import core
 from pox.topology.topology import *
-from pox.openflow.discovery import *
+from pox.openflow.discovery_patch_lldpinj import *
 from pox.openflow.libopenflow_01 import xid_generator
 from pox.openflow.flow_table import FlowTable,FlowTableModification,TableEntry
 from pox.lib.util import dpidToStr
