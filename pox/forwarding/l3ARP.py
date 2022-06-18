@@ -55,15 +55,16 @@ MAX_BUFFERED_PER_IP = 5
 MAX_BUFFER_TIME = 5
 
 
-main_table = {}
+main_table = {'192.168.0.3':'DE:AD:BE:EF:69:01', '192.168.0.4':'CA:FE:BA:BE:69:01', '192.168.0.5':'AA:BB:CC:DD:69:01'}
 ip_count_table = {}
 
+'''
 def popolaArpTable(packet):
   if str(packet.payload.protosrc) not in ip_count_table.keys(): #nessun pacchetto ancora ricevuto da questo IP
     ip_count_table[str(packet.payload.protosrc)] = 1 
     main_table[str(packet.payload.protosrc)] = str(packet.payload.hwsrc)
   #else ip gia presente in tabella
-
+'''
 
 def checkArpSpoofing(packet):
 
@@ -215,7 +216,7 @@ class l3_switch (EventMixin):
 
     #print(str(packet.payload.hwdst))
     if packet.type == packet.ARP_TYPE:
-        popolaArpTable(packet)
+        #popolaArpTable(packet)
         #print(str(packet.payload.hwdst))
         if checkArpSpoofing(packet):
           log.warning(str(packet.src)+"->"+str(packet.dst)+" ignorato")
