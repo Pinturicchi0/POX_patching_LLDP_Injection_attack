@@ -55,28 +55,11 @@ MAX_BUFFERED_PER_IP = 5
 MAX_BUFFER_TIME = 5
 
 
-main_table = {'192.168.0.3':'DE:AD:BE:EF:69:01', '192.168.0.4':'CA:FE:BA:BE:69:01', '192.168.0.5':'AA:BB:CC:DD:69:01'}
-ip_count_table = {}
-
-'''
-def popolaArpTable(packet):
-  if str(packet.payload.protosrc) not in ip_count_table.keys(): #nessun pacchetto ancora ricevuto da questo IP
-    ip_count_table[str(packet.payload.protosrc)] = 1 
-    main_table[str(packet.payload.protosrc)] = str(packet.payload.hwsrc)
-  #else ip gia presente in tabella
-'''
+main_table = {'192.168.0.3':'de:ad:be:ef:69:01', '192.168.0.4':'ca:fe:ba:be:69:01', '192.168.0.5':'aa:bb:cc:dd:69:01'}
 
 def checkArpSpoofing(packet):
 
-    #main_table = get_arp_table()
 
-    '''
-    def forArpTable(src_ip):
-        for j in main_table:
-            if j['IP address'] == src_ip:
-                return j['HW address']
-        return None
-    '''
     if(packet.payload.opcode != arp.REPLY):
        return False
     src_mac_ethernet = str(packet.src)
@@ -84,8 +67,6 @@ def checkArpSpoofing(packet):
     src_mac_arp = str(packet.payload.hwsrc)
     dst_ip_arp = str(packet.payload.protodst)
     dst_mac_ethernet = str(packet.dst)
-    print(str(packet.payload.hwdst)+'->'+dst_mac_ethernet)
-    #print(str(packet.payload.hwdst))
     #1. If source MAC of Ethernet not like Source MAC of ARP
     if src_mac_ethernet != src_mac_arp:
         print("Spoofing caso 1")
@@ -106,10 +87,8 @@ def checkArpSpoofing(packet):
     #3. If Destination IP of ARP not found in Main Table
     elif not dst_ip_arp in main_table.keys():
         print('Spoofing caso 3')
-        print(dst_mac_ethernet)
         return True
     else:
-         print(main_table)
          return False
 
 class Entry (object):
@@ -214,10 +193,8 @@ class l3_switch (EventMixin):
     inport = event.port
     packet = event.parsed
 
-    #print(str(packet.payload.hwdst))
+    #-----------PATCH ARP POISONING----------------------------------
     if packet.type == packet.ARP_TYPE:
-        #popolaArpTable(packet)
-        #print(str(packet.payload.hwdst))
         if checkArpSpoofing(packet):
           log.warning(str(packet.src)+"->"+str(packet.dst)+" ignorato")
           return

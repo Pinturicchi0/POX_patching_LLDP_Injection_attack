@@ -54,9 +54,12 @@ MAX_BUFFERED_PER_IP = 5
 # Maximum time to hang on to a buffer for an unknown IP in seconds
 MAX_BUFFER_TIME = 5
 
+#----------------DDOS STRUCTURE--------------------------
 ip_numPacchetti = dict()
-rilevazioni_thread = list()
+rilevazioni_thread = dict() #key =ip - value=counter
+MAX_BLACKLIST = 3 
 
+#---------------DDOS STRUCTURE---------------------------
 
 class Entry (object):
   """
@@ -95,14 +98,16 @@ class l3_switch (EventMixin):
     soglia = 10
 
     def checkDDOS():
-        while True:
-            #ip_numPacchetti = dict()
+        while True: 
             time.sleep(5)
-            #rilevazioni_thread = list()
-            print(ip_numPacchetti)
+            global ip_numPacchetti
             for ip in ip_numPacchetti.keys():
                 if ip_numPacchetti[ip] >= soglia:
-                    rilevazioni_thread.append(ip)
+                    if ip in rilevazioni_thread.keys():
+                      rilevazioni_thread[ip]+=1
+                    else:
+                      rilevazioni_thread[ip] = 1
+            ip_numPacchetti = dict()
 
     t = threading.Thread(target=checkDDOS)
     t.start()
@@ -187,7 +192,7 @@ class l3_switch (EventMixin):
     src_ip = None
 
     if isinstance(packet.next, ipv4):
-        print('SONO IN IPV4')
+        
         dstaddr = packet.next.dstip
         src_ip = packet.next.srcip
 
@@ -196,32 +201,49 @@ class l3_switch (EventMixin):
         else:
             ip_numPacchetti[str(src_ip)] += 1
 
+        '''
         if dpid in self.arpTable.keys() and dstaddr in self.arpTable[dpid].keys():
+          
             if packet.next.srcip in self.arpTable[dpid]:
                 prt = self.arpTable[dpid][dstaddr].port
                 mac = self.arpTable[dpid][dstaddr].mac
-
-                actions = []
+        '''
+        actions = []
 #                actions.append(of.ofp_action_dl_addr.set_dst(mac))
 #                actions.append(of.ofp_action_output(port = of.OFPP_NONE))
 
-                if self.wide:
-                    match = of.ofp_match(dl_type = packet.type, nw_dst = dstaddr)
-                else:
-                    match = of.ofp_match.from_packet(packet, inport)
+        if self.wide:
+            match = of.ofp_match(dl_type = packet.type, nw_dst = dstaddr)
+        else:
+            match = of.ofp_match.from_packet(packet, inport)
 
-                match = of.ofp_match(dl_type = packet.type, nw_src = src_ip)
+        match = of.ofp_match(dl_type = packet.type, nw_src = src_ip)
 
-                if str(src_ip) in rilevazioni_thread:
-                    msg = of.ofp_flow_mod(command=of.OFPFC_ADD, #todo GESTISCI METODO DI DROP RULE
-                                            idle_timeout=of.OFP_FLOW_PERMANENT, #FLOW_IDLE_TIMEOUT
-                                            hard_timeout=of.OFP_FLOW_PERMANENT,
-                                            buffer_id=event.ofp.buffer_id,
-                                            actions=actions,
-                                            match=match)
-                    event.connection.send(msg.pack())
-                    print('#-----------------------DDOS DETECTED-----------------')
-                    return
+        global rilevazioni_thread
+        if str(src_ip) in rilevazioni_thread.keys():
+            if rilevazioni_thread[str(src_ip)] >= MAX_BLACKLIST:
+              msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+                                      idle_timeout=of.OFP_FLOW_PERMANENT, 
+                                      hard_timeout=of.OFP_FLOW_PERMANENT,
+                                      buffer_id=event.ofp.buffer_id,
+                                      actions=actions,
+                                      match=match)
+              event.connection.send(msg.pack())
+              print('#-----------------------DDOS DETECTED: PERMANENT RULE-----------------')
+              del rilevazioni_thread[str(src_ip)]
+            else:
+              msg = of.ofp_flow_mod(command=of.OFPFC_ADD, 
+                                      idle_timeout=180, #drop per 3 min
+                                      hard_timeout=180,
+                                      buffer_id=event.ofp.buffer_id,
+                                      actions=actions,
+                                      match=match)
+              event.connection.send(msg.pack())
+              print('#-----------------------DDOS DETECTED: TEMPORARY RULE-----------------')
+              
+              
+            return
+
 
     #--------------------------DDOS-----------------------------
 
