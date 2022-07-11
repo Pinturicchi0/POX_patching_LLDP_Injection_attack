@@ -1,3 +1,4 @@
+
 # Copyright 2012-2013 James McCauley
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,13 +54,15 @@ MAX_BUFFERED_PER_IP = 5
 
 # Maximum time to hang on to a buffer for an unknown IP in seconds
 MAX_BUFFER_TIME = 5
-
+'''
 #----------------DDOS STRUCTURE--------------------------
 ip_numPacchetti = dict()
 rilevazioni_thread = dict() #key =ip - value=counter
-MAX_BLACKLIST = 3 
+MAX_BLACKLIST = 3
 
 #---------------DDOS STRUCTURE---------------------------
+'''
+
 
 class Entry (object):
   """
@@ -92,24 +95,21 @@ def dpid_to_mac (dpid):
 
 
 class l3_switch (EventMixin):
+
+  ip_numPacchetti = dict()
+  rilevazioni_thread = dict() #key =ip - value=counter
+  MAX_BLACKLIST = 3
+  TEMPORARY_RULE_TIME = 30
+  TIME_TO_SLEEP = 5
+  lock_strutture = threading.Lock()
+  rule_present = dict()
+  tempi_rilevazioni = dict()
+
   def __init__ (self, fakeways = [], arp_for_unknowns = False, wide = False):
 
-    #--------------------THREAD DDOS------------------------------
-    soglia = 10
+    #--------------------THREAD DDOS-----------------------------
 
-    def checkDDOS():
-        while True: 
-            time.sleep(5)
-            global ip_numPacchetti
-            for ip in ip_numPacchetti.keys():
-                if ip_numPacchetti[ip] >= soglia:
-                    if ip in rilevazioni_thread.keys():
-                      rilevazioni_thread[ip]+=1
-                    else:
-                      rilevazioni_thread[ip] = 1
-            ip_numPacchetti = dict()
-
-    t = threading.Thread(target=checkDDOS)
+    t = threading.Thread(target=l3_switch.checkDDOS)
     t.start()
 
     #-------------------THREAD DDOS-------------------------------
@@ -142,6 +142,37 @@ class l3_switch (EventMixin):
     self._expire_timer = Timer(5, self._handle_expiration, recurring=True)
 
     core.listen_to_dependencies(self)
+
+  def checkDDOS():
+
+    soglia = 500
+
+    while True:
+
+      time.sleep(l3_switch.TIME_TO_SLEEP)
+      #global ip_numPacchetti
+      with l3_switch.lock_strutture:
+        for ip in l3_switch.ip_numPacchetti.keys():
+          if l3_switch.ip_numPacchetti[ip] >= soglia:
+            print("SOGLIA SUPERATA per l'ip: {}".format(ip))
+            #print(l3_switch.rilevazioni_thread)
+            if ip in l3_switch.rilevazioni_thread.keys():
+              print("Incremento le rilevazioni per l'ip: {}".format(ip))
+              l3_switch.rilevazioni_thread[ip]+=1
+              l3_switch.tempi_rilevazioni[ip] = time.time()
+            else:
+              l3_switch.rilevazioni_thread[ip] = 1
+              l3_switch.tempi_rilevazioni[ip] = time.time()
+
+          else:
+            #num pacchetti non supera la soglia
+            print("SOGLIA NON SUPERATA per l'ip: {}".format(ip))
+            #print(l3_switch.ip_numPacchetti[ip])
+            if ip in l3_switch.rilevazioni_thread.keys():
+              if (time.time() - l3_switch.rule_present[ip]) > l3_switch.TEMPORARY_RULE_TIME:
+                print("RIMUOVO HOST NON PIU` MALEVOLO: {}".format(ip))
+                del l3_switch.rilevazioni_thread[ip]
+        l3_switch.ip_numPacchetti = dict()
 
   def _handle_expiration (self):
     # Called by a timer so that we can remove old items.
@@ -188,61 +219,83 @@ class l3_switch (EventMixin):
       return
 
     #--------------------------DDOS-----------------------------
-   
+
     src_ip = None
 
+
     if isinstance(packet.next, ipv4):
-        
-        dstaddr = packet.next.dstip
-        src_ip = packet.next.srcip
 
-        if str(src_ip) not in ip_numPacchetti.keys():
-            ip_numPacchetti[str(src_ip)] = 1
-        else:
-            ip_numPacchetti[str(src_ip)] += 1
+        with l3_switch.lock_strutture:
 
-        '''
-        if dpid in self.arpTable.keys() and dstaddr in self.arpTable[dpid].keys():
-          
-            if packet.next.srcip in self.arpTable[dpid]:
-                prt = self.arpTable[dpid][dstaddr].port
-                mac = self.arpTable[dpid][dstaddr].mac
-        '''
-        actions = []
-#                actions.append(of.ofp_action_dl_addr.set_dst(mac))
-#                actions.append(of.ofp_action_output(port = of.OFPP_NONE))
+          dstaddr = packet.next.dstip
+          src_ip = packet.next.srcip
 
-        if self.wide:
-            match = of.ofp_match(dl_type = packet.type, nw_dst = dstaddr)
-        else:
-            match = of.ofp_match.from_packet(packet, inport)
+          if str(src_ip) not in l3_switch.ip_numPacchetti.keys():
+              l3_switch.ip_numPacchetti[str(src_ip)] = 1
+          else:
+              l3_switch.ip_numPacchetti[str(src_ip)] += 1
 
-        match = of.ofp_match(dl_type = packet.type, nw_src = src_ip)
+          actions = []
 
-        global rilevazioni_thread
-        if str(src_ip) in rilevazioni_thread.keys():
-            if rilevazioni_thread[str(src_ip)] >= MAX_BLACKLIST:
-              msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
-                                      idle_timeout=of.OFP_FLOW_PERMANENT, 
-                                      hard_timeout=of.OFP_FLOW_PERMANENT,
-                                      buffer_id=event.ofp.buffer_id,
-                                      actions=actions,
-                                      match=match)
-              event.connection.send(msg.pack())
-              print('#-----------------------DDOS DETECTED: PERMANENT RULE-----------------')
-              del rilevazioni_thread[str(src_ip)]
-            else:
-              msg = of.ofp_flow_mod(command=of.OFPFC_ADD, 
-                                      idle_timeout=180, #drop per 3 min
-                                      hard_timeout=180,
-                                      buffer_id=event.ofp.buffer_id,
-                                      actions=actions,
-                                      match=match)
-              event.connection.send(msg.pack())
-              print('#-----------------------DDOS DETECTED: TEMPORARY RULE-----------------')
-              
-              
-            return
+          if self.wide:
+              match = of.ofp_match(dl_type = packet.type, nw_dst = dstaddr)
+          else:
+              match = of.ofp_match.from_packet(packet, inport)
+
+          match = of.ofp_match(dl_type = packet.type, nw_src = src_ip)
+
+          if str(src_ip) in l3_switch.rilevazioni_thread.keys():
+              if l3_switch.rilevazioni_thread[str(src_ip)] >= l3_switch.MAX_BLACKLIST:
+
+                msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+                                        idle_timeout=of.OFP_FLOW_PERMANENT,
+                                        hard_timeout=of.OFP_FLOW_PERMANENT,
+                                        buffer_id=event.ofp.buffer_id,
+                                        actions=actions,
+                                        match=match)
+                event.connection.send(msg.pack())
+                print('#-------------------DDOS DETECTED: PERMANENT RULE per host: {} -----------------'.format(str(src_ip)))
+                del l3_switch.rilevazioni_thread[str(src_ip)]
+
+              else:
+                if str(src_ip) in l3_switch.rule_present.keys(): #non e` la prima regola che installo
+                  if (time.time() - l3_switch.rule_present[str(src_ip)]) > l3_switch.TEMPORARY_RULE_TIME: #regola scaduta
+                    #check sui tempi
+                    tempo = time.time()
+                    if tempo - l3_switch.tempi_rilevazioni[str(src_ip)] > l3_switch.TIME_TO_SLEEP: #rilevazione vecchia
+                      return
+                    else:
+                      #print(l3_switch.rilevazioni_thread)
+                      msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+                                              idle_timeout=l3_switch.TEMPORARY_RULE_TIME, #drop per 3 min
+                                              hard_timeout=l3_switch.TEMPORARY_RULE_TIME,
+                                              buffer_id=event.ofp.buffer_id,
+                                              actions=actions,
+                                              match=match)
+                      event.connection.send(msg.pack())
+                      l3_switch.rule_present[str(src_ip)] = time.time()
+                      print('#------------------DDOS DETECTED: TEMPORARY RULE per host: {} -----------------'.format(str(src_ip)))
+
+                else:
+
+                  '''
+                  rilevazioni--> ip, numero rilevazioni, tempo_ultima_rilevazione
+                  tempo attuale dentro packet in - tempo_ultime_rilevazione > 5 --> rilevazione vecchia (thread seveglio ma non segnala)
+                  < 5 --> rilevazione fresca --> io agigungo la regola di drop
+
+                  '''
+                  #print(l3_switch.rilevazioni_thread)
+                  msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+                                          idle_timeout=l3_switch.TEMPORARY_RULE_TIME, #drop per 3 min
+                                          hard_timeout=l3_switch.TEMPORARY_RULE_TIME,
+                                          buffer_id=event.ofp.buffer_id,
+                                          actions=actions,
+                                          match=match)
+                  event.connection.send(msg.pack())
+                  l3_switch.rule_present[str(src_ip)] = time.time()
+                  print('#------------------DDOS DETECTED: TEMPORARY RULE per host: {} -----------------'.format(str(src_ip)))
+
+              return
 
 
     #--------------------------DDOS-----------------------------
@@ -301,13 +354,20 @@ class l3_switch (EventMixin):
           else:
             match = of.ofp_match.from_packet(packet, inport)
 
-          msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
+          if str(src_ip) not in l3_switch.rilevazioni_thread.keys():
+            # l'ip non è mai stato segnalato sino ad ora
+            msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
                                 idle_timeout=10,
                                 hard_timeout=10,
                                 buffer_id=event.ofp.buffer_id,
                                 actions=actions,
                                 match=match)
-          event.connection.send(msg.pack())
+            event.connection.send(msg.pack())
+          else:
+            #non installo regole per ip già segnalati come attaccanti
+            #questo mi permette di controllare meglio il flusso di pacchetti ricevuti
+            return
+
       elif self.arp_for_unknowns:
         # We don't know this destination.
         # First, we track this buffer so that we can try to resend it later
