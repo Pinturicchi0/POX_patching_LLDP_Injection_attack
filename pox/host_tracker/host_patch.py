@@ -384,7 +384,6 @@ class host_tracker (EventMixin):
 
       #controllare occorrenze uguali dpid-port
       macEntry = MacEntry(dpid,inport,packet.src)
-      print(macEntry)
       self.entryByMAC[packet.src] = macEntry
       log.info("Learned %s", str(macEntry))
       self.raiseEventNoErrors(HostEvent, macEntry, join=True)
@@ -415,7 +414,6 @@ class host_tracker (EventMixin):
     (pckt_srcip, hasARP) = self.getSrcIPandARP(packet.next)
     if pckt_srcip is not None:
       self.updateIPInfo(pckt_srcip,macEntry,hasARP)
-      print('UPDATE')
 
     if self.eat_packets and packet.dst == self.ping_src_mac:
       return EventHalt
@@ -434,7 +432,6 @@ class host_tracker (EventMixin):
                      str(macEntry), str(ip_addr) )
           else:
             self.sendPing(macEntry,ip_addr)
-            print('INCREMENTO STRANO')
             ipEntry.pings.sent()
             entryPinged = True
       if macEntry.expired() and not entryPinged:
