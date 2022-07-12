@@ -54,14 +54,7 @@ MAX_BUFFERED_PER_IP = 5
 
 # Maximum time to hang on to a buffer for an unknown IP in seconds
 MAX_BUFFER_TIME = 5
-'''
-#----------------DDOS STRUCTURE--------------------------
-ip_numPacchetti = dict()
-rilevazioni_thread = dict() #key =ip - value=counter
-MAX_BLACKLIST = 3
 
-#---------------DDOS STRUCTURE---------------------------
-'''
 
 
 class Entry (object):
@@ -278,12 +271,6 @@ class l3_switch (EventMixin):
 
                 else:
 
-                  '''
-                  rilevazioni--> ip, numero rilevazioni, tempo_ultima_rilevazione
-                  tempo attuale dentro packet in - tempo_ultime_rilevazione > 5 --> rilevazione vecchia (thread seveglio ma non segnala)
-                  < 5 --> rilevazione fresca --> io agigungo la regola di drop
-
-                  '''
                   #print(l3_switch.rilevazioni_thread)
                   msg = of.ofp_flow_mod(command=of.OFPFC_ADD,
                                           idle_timeout=l3_switch.TEMPORARY_RULE_TIME, #drop per 3 min
